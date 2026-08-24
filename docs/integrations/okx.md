@@ -769,9 +769,33 @@ Greeks.
 
 :::warning
 Option discovery requires at least one `instrument_families` value, for example `BTC-USD`.
-Pass it to `OKXDataClientConfig` when loading options from Python. The public Python execution
-config constructor does not expose this field, so selecting `OKXInstrumentType.OPTION` only on
-`OKXExecClientConfig` skips option loading and logs a warning.
+Pass the same explicit family to both `OKXDataClientConfig` and `OKXExecClientConfig` when loading
+options from Python:
+
+```python
+from nautilus_trader.adapters.okx import OKXDataClientConfig
+from nautilus_trader.adapters.okx import OKXExecClientConfig
+from nautilus_trader.adapters.okx import OKXInstrumentType
+from nautilus_trader.model import AccountId
+from nautilus_trader.model import TraderId
+
+
+data_config = OKXDataClientConfig(
+    instrument_types=[OKXInstrumentType.OPTION],
+    instrument_families=["BTC-USD"],
+)
+
+exec_config = OKXExecClientConfig(
+    trader_id=TraderId.from_str("TRADER-001"),
+    account_id=AccountId.from_str("OKX-001"),
+    instrument_types=[OKXInstrumentType.OPTION],
+    instrument_families=["BTC-USD"],
+)
+```
+
+`None`, an empty list, a blank or whitespace-padded family, a duplicate, or a list containing any
+invalid entry causes OPTION loading to be skipped locally with a warning. The adapter does not
+trim, deduplicate, or infer a family.
 :::
 
 ## Event contracts
@@ -1108,6 +1132,7 @@ The OKX execution client provides the following Python configuration options.
 | Option                   | Default                    | Description                                                                                             |
 | ------------------------ | -------------------------- | ------------------------------------------------------------------------------------------------------- |
 | `instrument_types`       | `[OKXInstrumentType.SPOT]` | Tradable OKX instrument types.                                                                          |
+| `instrument_families`    | `None`                     | Required for options (`BTC-USD`); filters futures, swaps, and events when set.                          |
 | `load_spreads`           | `False`                    | Loads live spread instruments.                                                                          |
 | `trader_id`              | Required                   | Nautilus trader ID for the client.                                                                      |
 | `account_id`             | Required                   | Nautilus account ID for the client.                                                                     |
