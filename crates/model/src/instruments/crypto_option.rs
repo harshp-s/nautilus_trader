@@ -421,6 +421,10 @@ impl Instrument for CryptoOption {
         self.is_inverse
     }
 
+    fn uses_inverse_price_valuation(&self) -> bool {
+        false
+    }
+
     fn isin(&self) -> Option<Ustr> {
         None // Not applicable
     }
@@ -561,6 +565,39 @@ mod tests {
         );
         assert!(crypto_option_btc_deribit.activation_ns().is_some());
         assert!(crypto_option_btc_deribit.expiration_ns().is_some());
+    }
+
+    #[rstest]
+    #[case(None)]
+    #[case(Some(false))]
+    #[case(Some(true))]
+    fn test_inverse_option_values_direct_premium(#[case] use_quote_for_inverse: Option<bool>) {
+        let mut option = crypto_option_btc_deribit(4, 0, Price::from("0.0001"), Quantity::from(1));
+        option.is_inverse = true;
+        option.multiplier = Quantity::from("0.01");
+
+        let notional = option
+            .try_calculate_notional_value(
+                Quantity::from(1),
+                Price::from("0.0325"),
+                use_quote_for_inverse,
+            )
+            .unwrap();
+
+        assert_eq!(notional, Money::from("0.000325 BTC"));
+    }
+
+    #[rstest]
+    fn test_inverse_option_allows_zero_premium() {
+        let mut option = crypto_option_btc_deribit(4, 0, Price::from("0.0001"), Quantity::from(1));
+        option.is_inverse = true;
+        option.multiplier = Quantity::from("0.01");
+
+        let notional = option
+            .try_calculate_notional_value(Quantity::from(3), Price::from("0.0000"), None)
+            .unwrap();
+
+        assert_eq!(notional, Money::from("0 BTC"));
     }
 
     #[rstest]

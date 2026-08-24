@@ -416,6 +416,10 @@ impl Instrument for CryptoOptionSpread {
         self.is_inverse
     }
 
+    fn uses_inverse_price_valuation(&self) -> bool {
+        false
+    }
+
     fn isin(&self) -> Option<Ustr> {
         None
     }
@@ -561,6 +565,24 @@ mod tests {
         );
         assert!(crypto_option_spread_btc_deribit.activation_ns().is_some());
         assert!(crypto_option_spread_btc_deribit.expiration_ns().is_some());
+    }
+
+    #[rstest]
+    #[case(Price::from("0.0100"), Money::from("0.0002 BTC"))]
+    #[case(Price::from("-0.0100"), Money::from("-0.0002 BTC"))]
+    fn test_inverse_option_spread_values_direct_premium(
+        #[case] price: Price,
+        #[case] expected: Money,
+    ) {
+        let mut spread = crypto_option_spread_btc_deribit();
+        spread.is_inverse = true;
+        spread.multiplier = Quantity::from("0.01");
+
+        let notional = spread
+            .try_calculate_notional_value(Quantity::from(2), price, Some(true))
+            .unwrap();
+
+        assert_eq!(notional, expected);
     }
 
     #[rstest]

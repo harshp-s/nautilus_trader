@@ -262,6 +262,9 @@ pub trait Instrument: 'static + Send {
     }
 
     fn is_inverse(&self) -> bool;
+    fn uses_inverse_price_valuation(&self) -> bool {
+        self.is_inverse()
+    }
     fn is_quanto(&self) -> bool {
         self.base_currency().is_some_and(|base_currency| {
             self.settlement_currency() != base_currency
@@ -572,7 +575,9 @@ pub trait Instrument: 'static + Send {
         price: Price,
         use_quote_for_inverse: Option<bool>,
     ) -> anyhow::Result<Money> {
-        let use_quote_inverse = use_quote_for_inverse.unwrap_or(false);
+        let uses_inverse_price_valuation = self.uses_inverse_price_valuation();
+        let use_quote_inverse =
+            use_quote_for_inverse.unwrap_or(false) && uses_inverse_price_valuation;
         let currency = if self.is_inverse() {
             if use_quote_inverse {
                 self.quote_currency()
@@ -591,7 +596,7 @@ pub trait Instrument: 'static + Send {
             quantity,
             price,
             self.multiplier(),
-            self.is_inverse(),
+            uses_inverse_price_valuation,
             use_quote_inverse,
             currency,
         )
@@ -704,11 +709,11 @@ pub(crate) fn try_notional_value(
     quantity: Quantity,
     price: Price,
     multiplier: Quantity,
-    is_inverse: bool,
+    uses_inverse_price_valuation: bool,
     use_quote_for_inverse: bool,
     currency: Currency,
 ) -> anyhow::Result<Money> {
-    let amount = if is_inverse && !use_quote_for_inverse {
+    let amount = if uses_inverse_price_valuation && !use_quote_for_inverse {
         anyhow::ensure!(
             price.is_positive(),
             "price must be positive for inverse notional valuation"
@@ -718,7 +723,7 @@ pub(crate) fn try_notional_value(
             .checked_mul(multiplier.as_decimal())
             .and_then(|value| value.checked_div(price.as_decimal()))
             .ok_or_else(|| anyhow::anyhow!("inverse notional calculation overflow"))?
-    } else if is_inverse {
+    } else if uses_inverse_price_valuation {
         quantity.as_decimal()
     } else {
         quantity
