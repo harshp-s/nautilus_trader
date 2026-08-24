@@ -152,3 +152,20 @@ program: superseded decisions remain visible and point to the replacing entry.
   it remains useful on the implementation branch.
 - **Reversibility:** Move or omit the log during final branch preparation with explicit user
   approval; its history remains in local commits.
+
+## D-012: Propagate notional currency through wallet reservations
+
+- **Status:** Accepted
+- **Decision:** Make derivative buy reservations in `WalletAccount` select the observed balance by
+  the currency returned from notional valuation, rather than independently inferring it from
+  `is_inverse` and `use_quote_for_inverse`.
+- **Rationale:** Once inverse option price valuation is direct, `use_quote_for_inverse=true` is
+  intentionally inapplicable and still returns BTC. The current wallet path would preselect the USD
+  balance and either fail or relabel BTC without conversion. Inverse-future quote mode must continue
+  to select its actual quote-currency notional.
+- **Alternatives:** Declare derivative wallet reservations unsupported; leave an inconsistent
+  generic `Account` implementation; special-case crypto options.
+- **Cost if wrong:** The wallet path performs the derivative notional calculation before looking up
+  its observed balance, while its exact linear-pair reservation path remains unchanged.
+- **Reversibility:** Restore source-currency inference if the account interface later prohibits all
+  derivative instruments explicitly.
