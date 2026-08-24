@@ -237,7 +237,7 @@ pub const OKX_TARGET_CCY_QUOTE: &str = "quote_ccy";
 /// Resolves instrument families for a given instrument type.
 ///
 /// Returns `Some(families)` when the type supports family filtering, or `None`
-/// to skip the instrument type entirely (Option without configured families).
+/// to skip the instrument type entirely (Option without usable configured families).
 /// An empty vec means no family filter is needed (Spot, Margin), or all
 /// discoverable families should be loaded (Events).
 pub fn resolve_instrument_families(
