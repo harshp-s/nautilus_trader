@@ -265,3 +265,42 @@ program: superseded decisions remain visible and point to the replacing entry.
   Python constructor in the bootstrap slice.
 - **Reversibility:** Constructor inputs can be added later after their routing and safety contracts
   have dedicated tests.
+
+## D-019: Satisfy verification prerequisites with exact task-local dependencies
+
+- **Status:** Accepted
+- **Decision:** Install PyArrow 25.0.0 into the ignored project environment and
+  `cargo-machete` 0.9.2 into the task-local Cargo home, matching the repository's wheel-test and
+  pre-commit requirements.
+- **Rationale:** The complete pre-commit run proved that Python test collection and dependency
+  analysis require those exact tools. Installing them locally closes an environmental verification
+  gap without changing project manifests or host-global state.
+- **Alternatives:** Skip the affected hooks; rely on hosted CI; install unpinned global versions.
+- **Cost if wrong:** The task-local environment consumes additional disk and must remain on the
+  verification `PATH`.
+- **Reversibility:** Remove the ignored environment and task-local toolchain after delivery.
+
+## D-020: Reclaim only reproducible Cargo artifacts under disk pressure
+
+- **Status:** Accepted
+- **Decision:** When repeated full-workspace verification exhausted the workspace volume, reclaim
+  only the generated `ci-pr` Cargo profile with `cargo clean --profile ci-pr`; preserve all source,
+  Git state, the Python environment, and other verification profiles.
+- **Rationale:** The removed 26.9 GiB consisted entirely of rebuildable compiler output. Continuing
+  with an almost-full volume risked false compiler and documentation failures.
+- **Alternatives:** Delete broad directories manually; remove the Python environment; stop before
+  an authoritative pre-commit result.
+- **Cost if wrong:** Any later `ci-pr` test command must rebuild its artifacts.
+- **Reversibility:** Cargo recreates the profile deterministically on the next build.
+
+## D-021: Apply repository-specific account formatting after semantic approval
+
+- **Status:** Accepted
+- **Decision:** Add the blank-line separations required by the repository formatting hook in the
+  two modified account methods, as a dedicated style-only commit after the semantic Task 4 review.
+- **Rationale:** The authoritative pre-commit hook rejected the otherwise reviewed code for two
+  local formatting conventions. Isolating the two-line correction preserves review provenance and
+  makes the non-semantic change explicit.
+- **Alternatives:** Fold the correction into the prior semantic commit; ignore the repository hook.
+- **Cost if wrong:** One additional local commit must be carried or squashed during integration.
+- **Reversibility:** The style-only commit can be squashed without altering behavior.
