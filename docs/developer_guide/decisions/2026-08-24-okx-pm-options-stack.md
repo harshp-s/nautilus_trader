@@ -507,3 +507,20 @@ program: superseded decisions remain visible and point to the replacing entry.
   taken. The later production stack still requires its own full integration and demo qualification.
 - **Reversibility:** Append a superseding final-HEAD evidence entry if a later dependency or
   integration rerun changes the result; never rewrite this observation.
+
+## D-033: Describe bootstrap family validation without inventing a venue grammar
+
+- **Status:** Accepted
+- **Decision:** Describe the bootstrap resolver as requiring a non-empty list of nonblank,
+  unpadded, unique strings. Do not call that check a complete canonical OKX family grammar. The
+  strict Portfolio Margin stack separately requires the exact configured family `BTC-USD`.
+- **Rationale:** The resolver deliberately prevents missing or broad OPTION discovery without
+  guessing an exchange grammar that is not represented by a typed, versioned model. Calling every
+  other malformed spelling "invalid" overstates what the code proves.
+- **Alternatives:** Add an ad hoc regular expression in the bootstrap; accept trimming or
+  deduplication; leave the documentation broader than the implementation.
+- **Cost if wrong:** A nonblank, unpadded, unique but venue-invalid string can reach the ordinary
+  discovery request and be rejected there. It cannot make the later strict PM client
+  order-capable, which accepts only `BTC-USD`.
+- **Reversibility:** A future typed family parser can strengthen the general resolver with explicit
+  compatibility tests and supersede this entry.

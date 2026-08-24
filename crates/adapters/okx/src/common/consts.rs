@@ -256,7 +256,7 @@ pub fn resolve_instrument_families(
                 Some(families.clone())
             } else {
                 log::warn!(
-                    "Skipping OPTION type: instrument_families must be non-empty, canonical, and unique"
+                    "Skipping OPTION type: instrument_families must be non-empty, unpadded, and unique"
                 );
                 None
             }
@@ -267,7 +267,7 @@ pub fn resolve_instrument_families(
         ) => Some(families.clone()),
         (None, OKXInstrumentType::Option) => {
             log::warn!(
-                "Skipping OPTION type: instrument_families must be non-empty, canonical, and unique"
+                "Skipping OPTION type: instrument_families must be non-empty, unpadded, and unique"
             );
             None
         }

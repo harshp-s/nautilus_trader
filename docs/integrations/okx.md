@@ -794,8 +794,9 @@ exec_config = OKXExecClientConfig(
 ```
 
 `None`, an empty list, a blank or whitespace-padded family, a duplicate, or a list containing any
-invalid entry causes OPTION loading to be skipped locally with a warning. The adapter does not
-trim, deduplicate, or infer a family.
+such unusable entry causes OPTION loading to be skipped locally with a warning. This bootstrap
+validates presence, padding, and uniqueness; it does not claim a complete exchange symbol grammar.
+The adapter does not trim, deduplicate, or infer a family.
 :::
 
 ## Event contracts
