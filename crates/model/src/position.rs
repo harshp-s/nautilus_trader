@@ -1042,6 +1042,15 @@ impl Position {
         }
     }
 
+    #[inline]
+    fn uses_inverse_price_valuation(&self) -> bool {
+        self.is_inverse
+            && !matches!(
+                self.instrument_class,
+                InstrumentClass::Option | InstrumentClass::OptionSpread
+            )
+    }
+
     fn calculate_points_inverse(&self, avg_px_open: f64, avg_px_close: f64) -> anyhow::Result<f64> {
         // Epsilon at the limit of IEEE f64 precision before rounding errors (f64::EPSILON ≈ 2.22e-16)
         const EPSILON: f64 = 1e-15;
@@ -1085,7 +1094,7 @@ impl Position {
         quantity: f64,
     ) -> anyhow::Result<f64> {
         let quantity = quantity.min(self.signed_qty.abs());
-        let result = if self.is_inverse {
+        let result = if self.uses_inverse_price_valuation() {
             anyhow::ensure!(
                 self.base_currency.is_some(),
                 "inverse position {} has no base currency",
@@ -1267,7 +1276,8 @@ impl Position {
     /// Returns an error if this is an inverse position without a base currency, the price is not
     /// positive for inverse valuation, or the result cannot be represented as [`Money`].
     pub fn try_notional_value(&self, last: Price) -> anyhow::Result<Money> {
-        let currency = if self.is_inverse {
+        let uses_inverse_price_valuation = self.uses_inverse_price_valuation();
+        let currency = if uses_inverse_price_valuation {
             self.base_currency.ok_or_else(|| {
                 anyhow::anyhow!(
                     "inverse position {} has no base currency",
@@ -1282,7 +1292,7 @@ impl Position {
             self.quantity,
             last,
             self.multiplier,
-            self.is_inverse,
+            uses_inverse_price_valuation,
             false,
             currency,
         )
@@ -1461,6 +1471,13 @@ mod tests {
         stubs::*,
         types::{Currency, Money, Price, Quantity},
     };
+
+    fn inverse_crypto_option() -> InstrumentAny {
+        let mut option = crypto_option_btc_deribit(4, 0, Price::from("0.0001"), Quantity::from(1));
+        option.is_inverse = true;
+        option.multiplier = Quantity::from("0.01");
+        InstrumentAny::CryptoOption(option)
+    }
 
     #[rstest]
     fn test_position_long_display(stub_position_long: Position) {
@@ -2983,6 +3000,127 @@ mod tests {
         assert_eq!(
             position.notional_value(Price::from("10670.5")),
             Money::from("106705 USDT")
+        );
+    }
+
+    #[rstest]
+    #[case(OrderSide::Buy, Money::from("0.001875 BTC"))]
+    #[case(OrderSide::Sell, Money::from("-0.001875 BTC"))]
+    fn test_inverse_option_position_uses_direct_premium_pnl(
+        #[case] side: OrderSide,
+        #[case] expected_pnl: Money,
+    ) {
+        let instrument = inverse_crypto_option();
+        let order = OrderTestBuilder::new(OrderType::Market)
+            .instrument_id(instrument.id())
+            .side(side)
+            .quantity(Quantity::from(25))
+            .build();
+        let fill = TestOrderEventStubs::filled(
+            &order,
+            &instrument,
+            None,
+            Some(PositionId::from("P-OPTION-DIRECT")),
+            Some(Price::from("0.0325")),
+            None,
+            None,
+            Some(Money::from("0 BTC")),
+            None,
+            None,
+        );
+        let position = Position::new(&instrument, fill.into());
+
+        let pnl = position.calculate_pnl(0.0325, 0.0400, Quantity::from(25));
+
+        assert_eq!(pnl, expected_pnl);
+        assert_eq!(position.unrealized_pnl(Price::from("0.0400")), expected_pnl);
+        assert_eq!(
+            position.notional_value(Price::from("0.0400")),
+            Money::from("0.01 BTC"),
+        );
+    }
+
+    #[rstest]
+    fn test_inverse_option_realized_close_uses_direct_premium_pnl() {
+        let instrument = inverse_crypto_option();
+        let position_id = PositionId::from("P-OPTION-REALIZED");
+        let opening_order = OrderTestBuilder::new(OrderType::Market)
+            .instrument_id(instrument.id())
+            .client_order_id(ClientOrderId::from("O-OPTION-OPEN"))
+            .side(OrderSide::Buy)
+            .quantity(Quantity::from(25))
+            .build();
+        let opening_fill = TestOrderEventStubs::filled(
+            &opening_order,
+            &instrument,
+            Some(TradeId::from("T-OPTION-OPEN")),
+            Some(position_id),
+            Some(Price::from("0.0325")),
+            None,
+            None,
+            Some(Money::from("0 BTC")),
+            None,
+            None,
+        );
+        let mut position = Position::new(&instrument, opening_fill.into());
+        let closing_order = OrderTestBuilder::new(OrderType::Market)
+            .instrument_id(instrument.id())
+            .client_order_id(ClientOrderId::from("O-OPTION-CLOSE"))
+            .side(OrderSide::Sell)
+            .quantity(Quantity::from(25))
+            .build();
+        let closing_fill: OrderFilled = TestOrderEventStubs::filled(
+            &closing_order,
+            &instrument,
+            Some(TradeId::from("T-OPTION-CLOSE")),
+            Some(position_id),
+            Some(Price::from("0.0400")),
+            None,
+            None,
+            Some(Money::from("0 BTC")),
+            None,
+            None,
+        )
+        .into();
+
+        position.apply(&closing_fill);
+
+        assert_eq!(position.realized_pnl, Some(Money::from("0.001875 BTC")));
+        assert!(position.is_closed());
+    }
+
+    #[rstest]
+    fn test_inverse_option_spread_position_uses_direct_price_valuation() {
+        let mut spread = crypto_option_spread_btc_deribit();
+        spread.is_inverse = true;
+        spread.multiplier = Quantity::from("0.01");
+        let instrument = InstrumentAny::CryptoOptionSpread(spread);
+        let order = OrderTestBuilder::new(OrderType::Market)
+            .instrument_id(instrument.id())
+            .side(OrderSide::Buy)
+            .quantity(Quantity::from(2))
+            .build();
+        let fill = TestOrderEventStubs::filled(
+            &order,
+            &instrument,
+            None,
+            Some(PositionId::from("P-OPTION-SPREAD-DIRECT")),
+            Some(Price::from("0.0100")),
+            None,
+            None,
+            Some(Money::from("0 BTC")),
+            None,
+            None,
+        );
+        let position = Position::new(&instrument, fill.into());
+
+        assert_eq!(
+            position.calculate_pnl(0.0100, -0.0050, Quantity::from(2)),
+            Money::from("-0.0003 BTC"),
+        );
+        assert_eq!(
+            position.notional_value(Price::from("-0.0050")),
+            Money::from("-0.0001 BTC"),
         );
     }
 
