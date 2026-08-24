@@ -1712,6 +1712,45 @@ mod tests {
     }
 
     #[rstest]
+    #[case(OrderSide::Buy, Money::from("-0.000325 BTC"))]
+    #[case(OrderSide::Sell, Money::from("0.000325 BTC"))]
+    fn test_calculate_pnls_for_inverse_crypto_option_realizes_direct_premium(
+        margin_account: MarginAccount,
+        #[case] side: OrderSide,
+        #[case] expected: Money,
+    ) {
+        let mut option = crypto_option_btc_deribit(4, 0, Price::from("0.0001"), Quantity::from(1));
+        option.is_inverse = true;
+        option.multiplier = Quantity::from("0.01");
+        let instrument = option.into_any();
+        let order = OrderTestBuilder::new(OrderType::Market)
+            .instrument_id(instrument.id())
+            .side(side)
+            .quantity(Quantity::from(1))
+            .build();
+        let fill = TestOrderEventStubs::filled(
+            &order,
+            &instrument,
+            None,
+            Some(PositionId::from("P-CRYPTO-OPTION-PREMIUM")),
+            Some(Price::from("0.0325")),
+            None,
+            None,
+            None,
+            None,
+            Some(AccountId::from("SIM-001")),
+        );
+        let fill: crate::events::OrderFilled = fill.into();
+
+        let pnls = margin_account
+            .calculate_pnls(&instrument, &fill, None)
+            .unwrap();
+
+        assert_eq!(pnls, vec![expected]);
+        assert!(instrument.is_inverse());
+    }
+
+    #[rstest]
     fn test_calculate_pnls_for_binary_option(margin_account: MarginAccount) {
         let binary = binary_option();
         let binary_any = InstrumentAny::BinaryOption(binary);

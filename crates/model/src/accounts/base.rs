@@ -279,29 +279,30 @@ impl BaseAccount {
         let base_currency = instrument
             .base_currency()
             .unwrap_or(instrument.quote_currency());
-        let quote_currency = instrument.quote_currency();
-        let amount = match side {
+        match side {
             // A buy at a negative price settles as a credit rather than a debit, so it
             // reserves nothing. Clamping per order rather than after aggregation keeps a
             // negative-price buy from financing a positive-price one before either fills.
-            OrderSide::Buy => instrument
-                .try_calculate_notional_value(quantity, price, use_quote_for_inverse)?
-                .as_decimal()
-                .max(Decimal::ZERO),
-            OrderSide::Sell => quantity.as_decimal(),
+            OrderSide::Buy => {
+                let notional = instrument.try_calculate_notional_value(
+                    quantity,
+                    price,
+                    use_quote_for_inverse,
+                )?;
+                let currency = if !instrument.is_inverse() && instrument.is_quanto() {
+                    instrument.quote_currency()
+                } else {
+                    notional.currency
+                };
+                Money::from_decimal(notional.as_decimal().max(Decimal::ZERO), currency)
+                    .map_err(Into::into)
+            }
+            OrderSide::Sell => {
+                Money::from_decimal(quantity.as_decimal(), base_currency).map_err(Into::into)
+            }
             OrderSide::NoOrderSide => {
                 anyhow::bail!("Invalid `OrderSide` in `base_calculate_balance_locked`: {side}")
             }
-        };
-
-        if instrument.is_inverse() && !use_quote_for_inverse.unwrap_or(false) {
-            Ok(Money::from_decimal(amount, base_currency)?)
-        } else if side == OrderSide::Buy {
-            Ok(Money::from_decimal(amount, quote_currency)?)
-        } else if side == OrderSide::Sell {
-            Ok(Money::from_decimal(amount, base_currency)?)
-        } else {
-            anyhow::bail!("Invalid `OrderSide` in `base_calculate_balance_locked`: {side}")
         }
     }
 

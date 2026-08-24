@@ -695,15 +695,33 @@ impl Account for WalletAccount {
         let base_currency = instrument
             .base_currency()
             .unwrap_or(instrument.quote_currency());
-        let source_currency = if instrument.is_inverse() && !use_quote_for_inverse.unwrap_or(false)
-        {
-            base_currency
-        } else if side == OrderSide::Buy {
-            instrument.quote_currency()
-        } else if side == OrderSide::Sell {
-            base_currency
-        } else {
-            anyhow::bail!("Invalid `OrderSide` in `calculate_balance_locked`: {side}")
+        let derivative_locked = match side {
+            OrderSide::Buy => {
+                Self::validate_quantity(quantity)?;
+                Self::validate_price(price)?;
+                if instrument.is_inverse() || instrument.is_quanto() {
+                    Some(self.base_calculate_balance_locked(
+                        instrument,
+                        side,
+                        quantity,
+                        price,
+                        use_quote_for_inverse,
+                    )?)
+                } else {
+                    None
+                }
+            }
+            OrderSide::Sell => None,
+            OrderSide::NoOrderSide => {
+                anyhow::bail!("Invalid `OrderSide` in `calculate_balance_locked`: {side}")
+            }
+        };
+        let source_currency = match side {
+            OrderSide::Buy => derivative_locked
+                .as_ref()
+                .map_or(instrument.quote_currency(), |locked| locked.currency),
+            OrderSide::Sell => base_currency,
+            OrderSide::NoOrderSide => unreachable!("validated above"),
         };
         let current_balance = self
             .base
@@ -720,27 +738,13 @@ impl Account for WalletAccount {
                 .map_err(Into::into);
         }
 
-        Self::validate_quantity(quantity)?;
-        Self::validate_price(price)?;
-
-        if !instrument.is_inverse() && !instrument.is_quanto() {
-            return Self::calculate_notional_exact(
-                instrument,
-                quantity,
-                price,
-                current_balance.currency,
-            )
-            .map_err(Into::into);
+        if let Some(locked) = derivative_locked {
+            return Self::normalize_reservation(locked, current_balance.currency)
+                .map_err(Into::into);
         }
 
-        let locked = self.base_calculate_balance_locked(
-            instrument,
-            side,
-            quantity,
-            price,
-            use_quote_for_inverse,
-        )?;
-        Self::normalize_reservation(locked, current_balance.currency).map_err(Into::into)
+        Self::calculate_notional_exact(instrument, quantity, price, current_balance.currency)
+            .map_err(Into::into)
     }
 
     fn calculate_pnls(
@@ -817,7 +821,7 @@ mod tests {
         enums::{AccountType, LiquiditySide, OrderSide},
         events::{AccountState, account::stubs::*},
         identifiers::{AccountId, InstrumentId, stubs::uuid4},
-        instruments::{CurrencyPair, Instrument, stubs::*},
+        instruments::{CryptoFuture, CryptoPerpetual, CurrencyPair, Instrument, stubs::*},
         orders::{builder::OrderTestBuilder, stubs::TestOrderEventStubs},
         types::{
             AccountBalance, Currency, Money, Price, Quantity,
@@ -1585,6 +1589,93 @@ mod tests {
             .unwrap();
 
         assert_eq!(balance_locked, Money::from("20000 USD"));
+    }
+
+    #[rstest]
+    #[case(false)]
+    #[case(true)]
+    fn test_calculate_balance_locked_buy_inverse_option_uses_notional_currency(
+        #[case] use_quote_for_inverse: bool,
+    ) {
+        let mut wallet = wallet_with_total(Currency::BTC(), Money::from("1 BTC").raw);
+        let mut option = crypto_option_btc_deribit(4, 0, Price::from("0.0001"), Quantity::from(1));
+        option.is_inverse = true;
+        option.multiplier = Quantity::from("0.01");
+
+        let locked = wallet
+            .calculate_balance_locked(
+                &option.into_any(),
+                OrderSide::Buy,
+                Quantity::from(1),
+                Price::from("0.0325"),
+                Some(use_quote_for_inverse),
+            )
+            .unwrap();
+
+        assert_eq!(locked, Money::from("0.000325 BTC"));
+    }
+
+    #[rstest]
+    fn test_calculate_balance_locked_buy_quanto_preserves_quote_currency(
+        ethbtc_quanto: CryptoFuture,
+    ) {
+        let mut wallet = wallet_with_total(Currency::BTC(), Money::from("10 BTC").raw);
+        let locked = wallet
+            .calculate_balance_locked(
+                &ethbtc_quanto.into_any(),
+                OrderSide::Buy,
+                Quantity::from(5),
+                Price::from("0.03600"),
+                None,
+            )
+            .unwrap();
+
+        assert_eq!(locked, Money::from("0.18 BTC"));
+    }
+
+    #[rstest]
+    #[case(false, Money::from("0.002 BTC"))]
+    #[case(true, Money::from("100 USD"))]
+    fn test_calculate_balance_locked_buy_inverse_future_respects_quote_flag(
+        #[case] use_quote_for_inverse: bool,
+        #[case] expected: Money,
+        xbtusd_inverse_perp: CryptoPerpetual,
+    ) {
+        let mut wallet = wallet_with_total(expected.currency, 1_000_000_000_000_000_000);
+        let locked = wallet
+            .calculate_balance_locked(
+                &xbtusd_inverse_perp.into_any(),
+                OrderSide::Buy,
+                Quantity::from(100),
+                Price::from("50000.0"),
+                Some(use_quote_for_inverse),
+            )
+            .unwrap();
+
+        assert_eq!(locked, expected);
+    }
+
+    #[rstest]
+    #[case(false, Money::from("138.88888889 ETH"))]
+    #[case(true, Money::from("5 BTC"))]
+    fn test_calculate_balance_locked_buy_inverse_quanto_respects_quote_flag(
+        #[case] use_quote_for_inverse: bool,
+        #[case] expected: Money,
+        mut ethbtc_quanto: CryptoFuture,
+    ) {
+        ethbtc_quanto.is_inverse = true;
+        let mut wallet = wallet_with_total(expected.currency, 1_000_000_000_000_000_000);
+        let locked = wallet
+            .calculate_balance_locked(
+                &ethbtc_quanto.into_any(),
+                OrderSide::Buy,
+                Quantity::from(5),
+                Price::from("0.03600"),
+                Some(use_quote_for_inverse),
+            )
+            .unwrap();
+
+        assert_eq!(locked, expected);
     }
 
     #[rstest]

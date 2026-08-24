@@ -627,6 +627,54 @@ mod tests {
     }
 
     #[rstest]
+    #[case(false)]
+    #[case(true)]
+    fn test_calculate_balance_locked_buy_inverse_option_keeps_premium_currency(
+        #[case] use_quote_for_inverse: bool,
+        mut cash_account_million_usd: CashAccount,
+    ) {
+        let mut option = crypto_option_btc_deribit(4, 0, Price::from("0.0001"), Quantity::from(1));
+        option.is_inverse = true;
+        option.multiplier = Quantity::from("0.01");
+
+        let locked = cash_account_million_usd
+            .calculate_balance_locked(
+                &option.into_any(),
+                OrderSide::Buy,
+                Quantity::from(1),
+                Price::from("0.0325"),
+                Some(use_quote_for_inverse),
+            )
+            .unwrap();
+
+        assert_eq!(locked, Money::from("0.000325 BTC"));
+    }
+
+    #[rstest]
+    #[case(false, Money::from("138.88888889 ETH"))]
+    #[case(true, Money::from("5 BTC"))]
+    fn test_calculate_balance_locked_buy_inverse_quanto_respects_quote_flag(
+        #[case] use_quote_for_inverse: bool,
+        #[case] expected: Money,
+        mut cash_account_million_usd: CashAccount,
+        mut ethbtc_quanto: CryptoFuture,
+    ) {
+        ethbtc_quanto.is_inverse = true;
+
+        let locked = cash_account_million_usd
+            .calculate_balance_locked(
+                &ethbtc_quanto.into_any(),
+                OrderSide::Buy,
+                Quantity::from(5),
+                Price::from("0.03600"),
+                Some(use_quote_for_inverse),
+            )
+            .unwrap();
+
+        assert_eq!(locked, expected);
+    }
+
+    #[rstest]
     #[case(false, Money::from("0.002 BTC"))]
     #[case(true, Money::from("100 USD"))]
     fn test_calculate_balance_locked_buy_inverse_respects_quote_flag(
