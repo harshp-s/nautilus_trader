@@ -721,3 +721,25 @@ program: superseded decisions remain visible and point to the replacing entry.
 - **Cost if wrong:** No production option-trading capability is added by this checkpoint commit.
 - **Reversibility:** Resume from the hash-bound plan, or supersede any contract through a new review
   and appended decision before implementation.
+
+## D-044: Publish the checkpoint after explicit user authorization
+
+- **Status:** Accepted
+- **Decision:** Publish `feat/okx-pm-btc-option-stack` to `origin` only after the user's subsequent
+  explicit push instruction. The workspace has no HTTPS Git credential, so the ordinary non-force
+  `git push` cannot authenticate. Use the connected GitHub app to replay the complete logical commit
+  sequence from pinned `develop` base `73d4686f816c893cda24d61fe6b67bdbf0746131`, preserving every
+  commit message and tree state, then create the previously absent remote branch. The app cannot
+  preserve local author/committer metadata, so remote commit IDs will differ; require the final
+  remote tree hash to equal the local HEAD tree hash exactly. Do not force-update, merge, or open a
+  pull request.
+- **Rationale:** This publishes the authorized checkpoint through the installed GitHub connection
+  without exposing credentials, weakening branch safety, squashing the audit sequence, or claiming
+  that different commit objects are identical.
+- **Alternatives:** Ask the user to configure a workspace Git credential; publish one squashed
+  snapshot; leave the checkpoint local.
+- **Cost if wrong:** The local and remote branches contain the same final files but have different
+  commit identities. A later conventional push requires an explicit history-reconciliation choice;
+  it must not be forced automatically.
+- **Reversibility:** A credentialed maintainer may create a new exact-history branch or explicitly
+  reconcile the two histories after verifying tree equivalence.
