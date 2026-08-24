@@ -304,3 +304,18 @@ program: superseded decisions remain visible and point to the replacing entry.
 - **Alternatives:** Fold the correction into the prior semantic commit; ignore the repository hook.
 - **Cost if wrong:** One additional local commit must be carried or squashed during integration.
 - **Reversibility:** The style-only commit can be squashed without altering behavior.
+
+## D-022: Gate the core branch on the complete repository policy suite
+
+- **Status:** Accepted
+- **Decision:** Treat the core option-economics branch as a valid stack base only after
+  `make pre-commit` passes with `CHANGED_BASE_SHA` pinned to D-001, selecting the entire branch
+  range rather than only the most recent commit.
+- **Rationale:** Focused tests and the earlier clean-tree run supplied strong evidence, but the
+  explicit base SHA proves that all changed model, execution, risk, portfolio, Python, and
+  documentation surfaces satisfy the repository-wide policy suite together.
+- **Alternatives:** Rely only on per-task tests; let the clean-worktree fallback infer changed
+  crates; defer the branch-wide gate to hosted CI.
+- **Cost if wrong:** The local gate repeats some expensive Clippy and documentation work.
+- **Reversibility:** Later stacked branches can use their own exact base SHA while retaining this
+  core result as historical evidence.
