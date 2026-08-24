@@ -169,3 +169,36 @@ program: superseded decisions remain visible and point to the replacing entry.
   its observed balance, while its exact linear-pair reservation path remains unchanged.
 - **Reversibility:** Restore source-currency inference if the account interface later prohibits all
   derivative instruments explicitly.
+
+## D-013: Preserve legacy quanto reservation and margin currency
+
+- **Status:** Accepted
+- **Decision:** Correct currency propagation for direct-priced inverse options without changing the
+  existing contract that cash-account reservations and generic margin models label non-inverse
+  quanto requirements in quote currency.
+- **Rationale:** Trusting `notional.currency` for every instrument would also change quanto locks
+  from quote to settlement currency. That may warrant a separate economics correction, but it is
+  unrelated to BTC-collateralized options and would widen this live-trading change beyond its
+  reviewed scope. For non-quanto instruments, returned notional currency remains authoritative.
+- **Alternatives:** Change quanto reservations and margins to settlement currency in this branch;
+  special-case the two crypto-option concrete types.
+- **Cost if wrong:** The pre-existing quanto currency behavior remains even if a future analysis
+  concludes settlement currency is economically preferable.
+- **Reversibility:** A focused quanto change can update the preserved controls and currency policy
+  independently.
+
+## D-014: Pin all local verification tools without changing host state
+
+- **Status:** Accepted
+- **Decision:** Use task-local Rust 1.98.0, nightly Rust 1.100.0-nightly
+  (`fb6531d55`, 2026-08-23), uv 0.12.5, and prek 0.4.14. Install binaries and caches only under
+  `/workspace/scratch/3284c9bc1274/toolchains`, then create the ignored project `.venv` with
+  `make sync`.
+- **Rationale:** The repository pins uv and prek, requires `cargo +nightly fmt`, and rejects the
+  system uv 0.11.33. Exact local versions make Python builds, formatting, and pre-commit executable
+  without mutating the host runtime or the repository manifests.
+- **Alternatives:** Skip Python and pre-commit verification; update global tools; rely entirely on
+  hosted CI.
+- **Cost if wrong:** The task-local toolchain and Python environment consume additional disk and
+  must be included explicitly on `PATH` for every worker shell.
+- **Reversibility:** Remove the task-local `toolchains` directory and ignored `.venv` after delivery.
