@@ -524,3 +524,200 @@ program: superseded decisions remain visible and point to the replacing entry.
   order-capable, which accepts only `BTC-USD`.
 - **Reversibility:** A future typed family parser can strengthen the general resolver with explicit
   compatibility tests and supersede this entry.
+
+## D-034: Freeze the reviewed stack contracts by content hash
+
+- **Status:** Accepted
+- **Decision:** Use the following SHA-256 digests as the exact reviewed design checkpoint:
+
+  - instrument registry: `f7a7ccb41b141deed2d675b14c26dc600b96b7fd8a2e5cf3a8021d993eed6876`;
+  - order preflight: `5c6e9229f6c521f14073866b90a1fab2ddd65e5548f005466328c573c93e26b9`;
+  - private reconciliation: `849c9135bd0716fe5705780e2c6d5a5b3ea59b4e71af2da9166f15cd0baea130`;
+  - risk and MMP: `975ab076b619a8d792e1f2e94aed84cf4da6dfc8ef3953a0cfc12a2065169848`;
+  - expiry settlement: `cbdfe2b9928f3724244aff1fe8d09bbb075b8a2def0613e481a5fc20f7737207`;
+    and
+  - ordered implementation plan: `9d6b4b6589f9be5cc908cae76bb279f3356a87d81c29c98582f64830b1828ca2`.
+
+  All five contracts received a final adversarial review with no remaining Critical or Important
+  finding. The five contracts and plan passed the repository-pinned Markdown and table checks.
+  They remain local ignored planning artifacts under `docs/superpowers`; do not force-add them.
+- **Rationale:** Hashes bind this tracked record to the exact locally reviewed inputs without
+  overriding the repository's ignore policy for agent planning artifacts.
+- **Alternatives:** Force-add ignored files; commit an unreviewed summary; begin implementation
+  without freezing the contract revision.
+- **Cost if wrong:** A future checkout contains the accepted decisions but not the ignored source
+  text; resumption requires the local artifacts or independently supplied byte-identical copies.
+- **Reversibility:** Append new hashes and a superseding decision after any reviewed contract edit.
+
+## D-035: Keep V1 feasibility conditional and deliberately narrow
+
+- **Status:** Accepted
+- **Decision:** The intended first qualified lane is OKX Portfolio Margin, Cross margin, Net position
+  mode, family `BTC-USD`, BTC collateral, coin-margined options, and individually submitted limit,
+  GTC, or post-only orders. Initial production qualification is LongOnly. Market orders, shorts,
+  place-order lists, batch amend, and production MMP remain disabled until their separate contracts
+  and venue capabilities are proved. Strict order placement remains blocked by default.
+- **Rationale:** The core premium-valuation and bootstrap commits make the project technically
+  feasible, but correctness still depends on durable reconciliation, PM risk, expiry, account, and
+  recovery properties which do not yet exist in production code.
+- **Alternatives:** Enable every OKX option feature together; treat bootstrap discovery as trading
+  readiness; permit generic adapter behavior to bypass the strict lane.
+- **Cost if wrong:** The first release supports fewer strategies and may require later capability
+  migrations for shorts, market execution, and batch operations.
+- **Reversibility:** Expand only through explicit versioned capabilities, tests, and demo/live
+  qualification; never widen an existing strict capability implicitly.
+
+## D-036: Make the locked option store a mandatory safety boundary
+
+- **Status:** Accepted
+- **Decision:** Require one configured absolute option-store path, an account/environment/family
+  fingerprint, exclusive writer lock and term, and non-destructive schema migration before strict
+  startup. A brand-new store uses `BootstrapPending`: install without replacement, fsync the parent,
+  reopen and fully verify bytes, then atomically assign the first writer term and clear pending.
+  Restart from term zero/pending repeats parent sync and verification. Missing, corrupt,
+  incompatible, or migration-incomplete stores fail closed; recovery uses a separately fenced
+  transport identity and never converts uncertainty into absence.
+- **Rationale:** Orders, publications, source watermarks, risk leases, and settlement cannot be made
+  crash-safe from in-memory state or a silently recreated database.
+- **Alternatives:** Relative/default paths; destructive reset on mismatch; process-local locks;
+  inference from a missing store.
+- **Cost if wrong:** Operators must provision and retain an additional durable store and explicitly
+  resolve identity or migration failures.
+- **Reversibility:** A later store version may migrate through shadow-copy verification and atomic
+  activation while preserving every old byte until acceptance.
+
+## D-037: Admit lifecycle and command effects through durable publication workflows
+
+- **Status:** Accepted
+- **Decision:** Persist normalized source rows, entity predecessor/version allocation, immutable
+  prepared publication payloads, backend receipt groups, and per-consumer acknowledgements. Startup
+  hydrates unresolved workflows before new work. Strict place first enters its durable
+  `AdmissionPending` workflow; strict modify/cancel first enter their durable proposal inbox. Every
+  durably accepted modify/cancel proposal eventually produces one receipt-bearing command outcome,
+  even when no schema-valid native lifecycle rejection exists. Native lifecycle publications
+  complete after their projection-applicable consumer receipts; proposal rejection additionally
+  requires the Execution command-outcome and durable Trader/Strategy ticket receipts.
+- **Rationale:** A venue update and its Portfolio, analyzer, cache, and strategy consequences must
+  not fork across crashes, retries, backend partial failure, or terminal-order races.
+- **Alternatives:** Direct WebSocket callbacks; best-effort rejection events; memory-only pending
+  commands; treating backend enqueue as application.
+- **Cost if wrong:** The workflow adds durable states, receipts, replay logic, and blocked alerts.
+- **Reversibility:** Additional consumers or backend adapters may be versioned into later receipt
+  groups without weakening existing acknowledgements.
+
+## D-038: Sequence modify and cancel recovery before venue invocation
+
+- **Status:** Accepted
+- **Decision:** Core proposal admission is the first durable side effect for modify/cancel. For a
+  position-changing modify, the draining actor then acquires the deterministic
+  position-changing lease and any separate amend-delta reservation in one option-store transaction
+  before HTTP precheck or venue invocation. Modify failure before allocation emits a receipt-bearing
+  `NotAllocated` outcome. Definitive modify rejection releases only the exact child reservation and
+  lease, with a durable release receipt; it never rewrites the old live-order basis or fill debit.
+  Place/cancel ambiguity is resolved by a durable arbiter, and all cancel sources share one target
+  claim and attempt receipt. Cancel allocates no position-changing lease or amend child and has risk
+  release `NotApplicable`. Batch cancel groups are atomic at the command-outcome layer.
+- **Rationale:** Risk state cannot precede an uncertain core proposal, and retries must resume the
+  same command/hold instead of double-reserving, double-cancelling, or losing a terminal outcome.
+- **Alternatives:** Allocate risk before core admission; invoke cancel independently per source;
+  infer release from a transient error.
+- **Cost if wrong:** The command path has more serialized durable transitions and can block for
+  operator resolution rather than guess after ambiguous outcomes.
+- **Reversibility:** Concurrency may be widened only after proving equivalent per-target and
+  per-position serialization.
+
+## D-039: Recompute Portfolio Margin risk for every position-changing request
+
+- **Status:** Accepted
+- **Decision:** Every strict place or amend, including an apparently reducing order, requires fresh
+  venue account/position/order evidence and projects both IMR and MMR. V1 permits one
+  position-changing admission lease per policy scope and holds exact BTC premium and fee amounts.
+  Release from account evidence requires a strictly newer authoritative account `uTime`. A
+  `SentOrAmbiguous` place may be proved absent only when the calibrated lower bound is strictly
+  after its immutable `expTime`, the writer generation is fenced and released, all WebSocket,
+  pending, and history proofs agree, and the current upper bound is still strictly inside the
+  two-hour history-retention window. Equality or stale calibration blocks.
+- **Rationale:** Portfolio Margin is account-wide and nonlinear; labels such as reduce-only cannot
+  substitute for current venue evidence or causal release.
+- **Alternatives:** Static per-order margin; cache-only precheck; immediate timeout release;
+  concurrent leases in V1.
+- **Cost if wrong:** Safe admission is conservative and may reject or pause trades during stale
+  evidence, clock uncertainty, or history outages.
+- **Reversibility:** Calibrated model/rate improvements may increase concurrency after replay and
+  failure-injection tests prove the same safety invariant.
+
+## D-040: Preserve source lower bounds through reconciliation overflow and restart
+
+- **Status:** Accepted
+- **Decision:** Reconciliation uses strict endpoint-specific pagination cursors, frozen generations,
+  durable attempts, and a fair/coalesced shared quota scheduler. Before rejecting a frame which
+  crosses a configured count or byte bound, perform a bounded single-frame parse sufficient to
+  persist `UnjoinedUpdateLowerBoundV1`; if parsing is impossible or prohibited by the resource
+  bound, persist `RecoveryGapMarkerV1` with raw digest and length. Neither condition may advance a
+  normal watermark or authorize absence. External principal activity remains an operational
+  invariant: unexplained account mutation blocks the strict scope instead of being assimilated.
+- **Rationale:** The update that triggers overflow may be the only durable proof that a venue event
+  exists. Dropping it would turn overload into false absence after restart.
+- **Alternatives:** Discard the overflow frame; restart pagination from local receipt time; share
+  mutable cursors between endpoint generations.
+- **Cost if wrong:** Recovery may remain blocked until retention-safe evidence or operator action is
+  available.
+- **Reversibility:** Bounds and parsers may be raised or optimized while retaining the exact gap and
+  lower-bound semantics.
+
+## D-041: Treat MMP as a durable circuit, not an order convenience
+
+- **Status:** Accepted
+- **Decision:** MMP enablement requires an exact qualified venue/account/session capability and a
+  durable breaker workflow. Trigger, cancellation coverage, acknowledgement, retry, cooldown,
+  rearm, and generation fencing survive restart. No order is considered covered merely because its
+  local attributes resemble a protected quote.
+- **Rationale:** A process-local flag cannot prove venue protection or prevent stale sessions from
+  rearming after a crash.
+- **Alternatives:** Enable MMP optimistically; model it as a normal cancel-all; infer state from
+  current open orders.
+- **Cost if wrong:** MMP stays unavailable until demo/live capability evidence and failure-injection
+  tests are complete.
+- **Reversibility:** Add qualified venue variants behind new exact capability versions.
+
+## D-042: Gate expiry settlement on a frozen lifecycle and authoritative absolute target
+
+- **Status:** Accepted
+- **Decision:** Expiry first freezes the family through cancellation plus two complete sweeps and a
+  durable cutover. Settlement uses lifecycle generation, birth/source transition, nonblank current
+  `cTime`, final entity heads, and an authoritative positions-history absolute BTC `realizedPnl`
+  target joined to required bills. The target environment must prove `cTime` distinguishes
+  close/reopen; otherwise V1 auto-settlement is blocked. A dispatch token orders late pre-expiry
+  lifecycle edges against core commit. Before invocation, an edge invalidates and rebuilds the
+  freeze; once the replacement freeze is Frozen, one CAS may requalify the unchanged retained
+  source against the unchanged applied head only after proving the old token was revoked and never
+  issued. At or after invocation uncertainty, no ordinary append is allowed. Settlement paths use
+  the same fallible scratch-projection transition, apply absolute BTC PnL exactly once, flatten
+  volume exactly once, and mark price return unavailable instead of fabricating a return. Account
+  reconciliation is two-stage: premerge account evidence is comparison-only, and a fresh
+  post-lifecycle account request supplies final evidence.
+- **Rationale:** Options can expire while late private data is still in flight; source equality,
+  flat/reopen reuse, client-response loss, and account ordering must not strand settlement or apply
+  money/volume twice.
+- **Alternatives:** Settle from bills alone; use receive time; accept blank/reused lifecycle
+  metadata; revoke an already-issued call; reuse the premerge account snapshot.
+- **Cost if wrong:** Automatic settlement intentionally blocks when the venue cannot supply the
+  required lifecycle discriminator, retention window, quota capacity, or authoritative evidence.
+- **Reversibility:** A later version may introduce an independently proved lifecycle discriminator
+  or operator-authorized full replay/correction workflow without weakening V1.
+
+## D-043: Pause at the reviewed design checkpoint
+
+- **Status:** Accepted
+- **Decision:** Stop before the first production implementation slice. Commit this tracked decision
+  log as the local checkpoint on `feat/okx-pm-btc-option-stack`, leaving the reviewed contracts and
+  plan ignored and hash-anchored. Do not push, open a PR or issue, merge, use credentials, or make a
+  demo/live OKX request. Resume with the ordered test-driven configuration/store slice only after a
+  new user instruction.
+- **Rationale:** The user explicitly requested a pause after finishing and committing the task at
+  hand. The completed task is contract closure and adversarial review, not production integration.
+- **Alternatives:** Begin implementation before pausing; force-add planning artifacts; publish the
+  branch to GitHub.
+- **Cost if wrong:** No production option-trading capability is added by this checkpoint commit.
+- **Reversibility:** Resume from the hash-bound plan, or supersede any contract through a new review
+  and appended decision before implementation.
