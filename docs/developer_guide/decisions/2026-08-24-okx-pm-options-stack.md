@@ -319,3 +319,95 @@ program: superseded decisions remain visible and point to the replacing entry.
 - **Cost if wrong:** The local gate repeats some expensive Clippy and documentation work.
 - **Reversibility:** Later stacked branches can use their own exact base SHA while retaining this
   core result as historical evidence.
+
+## D-023: Isolate option price PnL from commission currency in tests
+
+- **Status:** Accepted
+- **Decision:** Construct option-position valuation tests with explicit zero-valued BTC
+  commissions rather than the generic fill stub's default USD commission.
+- **Rationale:** The cases are intended to prove direct premium PnL and notional arithmetic. An
+  unrelated USD fee either changes the independently derived PnL literal or exercises currency
+  conversion that is outside this correction.
+- **Alternatives:** Reuse the generic USD commission; subtract an observed fee from expected PnL;
+  special-case commission handling in production.
+- **Cost if wrong:** The tests would not cover a nonzero option commission, which remains covered by
+  the fee-model tests rather than the position-price tests.
+- **Reversibility:** Add a separate nonzero BTC commission case without changing these isolated
+  arithmetic controls.
+
+## D-024: Preserve honest integration evidence after the owning production fix
+
+- **Status:** Accepted
+- **Decision:** Treat downstream MarginAccount and Python Position cases added after the owning
+  core valuation changes as post-change integration evidence. Do not revert correct production code
+  merely to manufacture a second RED phase.
+- **Rationale:** Tasks 1 and 2 already captured behavioral RED failures at the production boundary.
+  Reverting them would weaken provenance and could make unrelated downstream expectations fail for
+  the wrong reason.
+- **Alternatives:** Temporarily revert production for every downstream test; omit downstream
+  integration coverage; label a test RED without observing it.
+- **Cost if wrong:** Those individual downstream tests have no isolated mutation run, although the
+  owning production behavior has observed RED/GREEN evidence and full-suite coverage.
+- **Reversibility:** A future mutation-testing job can prove each downstream assertion independently.
+
+## D-025: Stage conditional downstream changes only by reviewed exact path
+
+- **Status:** Accepted
+- **Decision:** If verification had required a risk or portfolio correction, stage only the exact
+  reviewed files and include them in the owning downstream contract commit; never stage either
+  directory broadly or leave reviewed changes merely staged.
+- **Rationale:** The worktree may contain user-owned changes, and conditional scope must not expand
+  silently. In the observed run, both full suites passed and no such production file changed.
+- **Alternatives:** Stage whole directories; make an unreviewed cleanup commit; omit failing
+  downstream coverage.
+- **Cost if wrong:** Exact-path staging requires more bookkeeping when several files legitimately
+  change.
+- **Reversibility:** None was exercised because the conditional production changes were unnecessary.
+
+## D-026: Accept the observed negative-spread RED failure mode
+
+- **Status:** Accepted
+- **Decision:** Count the negative option-spread notional case as a valid RED even though the
+  existing `Some(true)` quote-mode path bypassed the anticipated positive-price guard and returned
+  the wrong reciprocal USD value instead of raising that guard.
+- **Rationale:** The independently derived direct signed BTC expectation failed before production
+  changed and passed afterward. The exact pre-change failure mechanism differed from the planning
+  prediction, but the required behavior was still demonstrably absent.
+- **Alternatives:** Rewrite the test to force the predicted error; discard the observed failure;
+  change the expectation to match reciprocal output.
+- **Cost if wrong:** Only the plan's failure-mode narration changes; the product behavior and
+  independent expected value remain tested.
+- **Reversibility:** The preserved test output can be reclassified without changing implementation.
+
+## D-027: Record the core branch verification evidence and limitations
+
+- **Status:** Accepted
+- **Decision:** Accept the core valuation stack after the following exact local verification
+  commands all exited zero:
+
+  - `cargo test --profile ci-pr -p nautilus-model --lib -j1`: 3,087 passed, 0 failed,
+    1 suite-marked ignored test;
+  - `cargo test --profile ci-pr -p nautilus-execution --lib -j1`: 596 passed, 0 failed;
+  - `cargo test --profile ci-pr -p nautilus-risk --lib -j1`: 26 passed, 0 failed;
+  - `cargo test --profile ci-pr -p nautilus-portfolio --lib -j1`: 64 passed, 0 failed;
+  - `VIRTUAL_ENV= uv run --no-sync pytest -q tests/unit/model/test_instruments.py
+    tests/unit/model/test_position.py`, from `python/`: 117 passed;
+  - `make format`: Rust and Python formatting passed, with 739 Python files unchanged;
+  - `make pre-commit` with
+    `CHANGED_BASE_SHA=73d4686f816c893cda24d61fe6b67bdbf0746131`: every hook passed,
+    including Python collection, Clippy, Cargo docs, cargo-machete, formatting, security, and
+    repository conventions;
+  - `git diff --check` and committed/staged/working-tree inspections: passed and clean.
+
+- **Rationale:** This is the durable evidence required before later OKX adapter branches depend on
+  the core semantics. The single ignored model test is an expected suite marker, not a failure, and
+  was unchanged by this branch.
+- **Alternatives:** Preserve results only in ignored harness files; rely on hosted CI; report only
+  focused tests.
+- **Cost if wrong:** These results are environment-specific and do not substitute for demo/live OKX
+  qualification of later adapter changes.
+- **Limitations:** No live venue request was made. No Arrow/SQL schema, FFI header, generated
+  wrapper, or `.pyi` file changed. Python linking required the D-014/D-019 task-local environment,
+  and generated Cargo profiles may need rebuilding after D-020 cleanup.
+- **Reversibility:** Append a superseding evidence entry if a later final-HEAD rerun changes any
+  result; never rewrite the recorded observation.

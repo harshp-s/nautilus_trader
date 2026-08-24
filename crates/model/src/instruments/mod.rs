@@ -262,6 +262,11 @@ pub trait Instrument: 'static + Send {
     }
 
     fn is_inverse(&self) -> bool;
+
+    /// Returns whether price-dependent valuation uses reciprocal inverse arithmetic.
+    ///
+    /// This is intentionally distinct from [`Instrument::is_inverse`]: a contract can preserve
+    /// inverse settlement metadata while quoting its premium directly, as crypto options do.
     fn uses_inverse_price_valuation(&self) -> bool {
         self.is_inverse()
     }

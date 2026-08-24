@@ -1273,8 +1273,9 @@ impl Position {
     ///
     /// # Errors
     ///
-    /// Returns an error if this is an inverse position without a base currency, the price is not
-    /// positive for inverse valuation, or the result cannot be represented as [`Money`].
+    /// Returns an error if this position uses reciprocal inverse-price valuation without a base
+    /// currency, the price is not positive for inverse valuation, or the result cannot be
+    /// represented as [`Money`].
     pub fn try_notional_value(&self, last: Price) -> anyhow::Result<Money> {
         let uses_inverse_price_valuation = self.uses_inverse_price_valuation();
         let currency = if uses_inverse_price_valuation {
