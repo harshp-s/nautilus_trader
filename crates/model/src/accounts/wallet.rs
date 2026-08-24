@@ -699,6 +699,7 @@ impl Account for WalletAccount {
             OrderSide::Buy => {
                 Self::validate_quantity(quantity)?;
                 Self::validate_price(price)?;
+
                 if instrument.is_inverse() || instrument.is_quanto() {
                     Some(self.base_calculate_balance_locked(
                         instrument,

@@ -279,6 +279,7 @@ impl BaseAccount {
         let base_currency = instrument
             .base_currency()
             .unwrap_or(instrument.quote_currency());
+
         match side {
             // A buy at a negative price settles as a credit rather than a debit, so it
             // reserves nothing. Clamping per order rather than after aggregation keeps a
