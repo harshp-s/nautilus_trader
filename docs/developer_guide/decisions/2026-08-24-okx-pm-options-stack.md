@@ -217,3 +217,51 @@ program: superseded decisions remain visible and point to the replacing entry.
 - **Cost if wrong:** The compatibility predicate is more explicit and carries extra control tests
   through cash, wallet, and margin paths.
 - **Reversibility:** A later unified valuation-convention model can replace both derived predicates.
+
+## D-016: Append the missing option-family input to the Python execution config
+
+- **Status:** Accepted
+- **Decision:** Expose the existing Rust `instrument_families` field as a final, optional Python
+  constructor argument on `OKXExecClientConfig`, after every existing positional argument.
+- **Rationale:** The Rust execution client already resolves and loads configured option families,
+  but the Python constructor hardcodes the field to `None`. Appending the argument unlocks the
+  existing path without changing positional caller meanings or the serialized Rust config.
+- **Alternatives:** Insert the argument beside `instrument_types`; add a second options-only config;
+  infer `BTC-USD` when OPTION is selected.
+- **Cost if wrong:** The constructor gains one more public input and generated-stub surface even for
+  callers that do not trade options.
+- **Reversibility:** The default remains `None`; the additive input can be deprecated without
+  changing existing calls.
+
+## D-017: Fail closed on unusable OPTION family configuration
+
+- **Status:** Accepted
+- **Decision:** Treat a missing, empty, blank-only, or mixed valid/blank family list as invalid when
+  OPTION is requested. Skip OPTION loading locally with a warning; return a configured vector
+  unchanged only when it is non-empty and every member is non-blank.
+- **Rationale:** OKX requires an explicit option family. Sending an ambiguous or blank request risks
+  broad discovery, venue rejection, or an execution client that appears configured but has no
+  tradable option cache.
+- **Alternatives:** Trim and discard blank elements; load all option families; silently default to
+  `BTC-USD`; rely only on the HTTP endpoint rejection.
+- **Cost if wrong:** A configuration containing an accidental blank alongside valid families stops
+  all OPTION startup rather than partially loading.
+- **Reversibility:** Validation can later return structured per-entry diagnostics or accept a safer
+  typed family value without changing the explicit-family requirement.
+
+## D-018: Expose diagnostics without enabling generic mass cancel
+
+- **Status:** Accepted
+- **Decision:** Add read-only Python getters for `instrument_families`, `use_spot_margin`, and
+  `use_mm_mass_cancel`, but do not make either `use_*` flag constructor-settable in the bootstrap
+  change. Keep generic mass cancel disabled for the option stack until a family-scoped MMP safety
+  design is implemented and reviewed.
+- **Rationale:** Operators need to verify effective native configuration, while the existing
+  `use_mm_mass_cancel` switch changes generic cancel-all routing and is not equivalent to OKX
+  option Market Maker Protection.
+- **Alternatives:** Expose both flags as constructor inputs immediately; reuse generic mass cancel
+  as MMP; expose every internal config field.
+- **Cost if wrong:** Advanced callers cannot opt into those existing flags through the public
+  Python constructor in the bootstrap slice.
+- **Reversibility:** Constructor inputs can be added later after their routing and safety contracts
+  have dedicated tests.
