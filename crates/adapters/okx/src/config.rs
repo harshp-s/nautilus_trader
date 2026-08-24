@@ -267,6 +267,7 @@ nautilus_core::impl_pyo3_config_getters!(OKXExecClientConfig {
     trader_id: TraderId,
     account_id: AccountId,
     instrument_types: Vec<OKXInstrumentType>,
+    instrument_families: Option<Vec<String>>,
     environment: OKXEnvironment,
     region: OKXRegion,
     base_url_http: Option<String>,
@@ -278,6 +279,8 @@ nautilus_core::impl_pyo3_config_getters!(OKXExecClientConfig {
     retry_delay_max_ms: u64,
     margin_mode: Option<OKXMarginMode>,
     load_spreads: bool,
+    use_mm_mass_cancel: bool,
+    use_spot_margin: bool,
     auth_timeout_secs: Option<u64>,
     transport_backend: TransportBackend,
 });

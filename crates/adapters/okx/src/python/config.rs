@@ -147,6 +147,7 @@ impl OKXExecClientConfig {
         load_spreads = false,
         auth_timeout_secs = None,
         transport_backend = None,
+        instrument_families = None,
     ))]
     #[expect(clippy::too_many_arguments)]
     fn py_new(
@@ -170,6 +171,7 @@ impl OKXExecClientConfig {
         load_spreads: bool,
         auth_timeout_secs: Option<u64>,
         transport_backend: Option<TransportBackend>,
+        instrument_families: Option<Vec<String>>,
     ) -> Self {
         let defaults = Self::default();
         Self {
@@ -180,7 +182,7 @@ impl OKXExecClientConfig {
             api_passphrase,
             instrument_types: instrument_types.unwrap_or(defaults.instrument_types),
             contract_types: None,
-            instrument_families: None,
+            instrument_families,
             base_url_http,
             base_url_ws_private,
             base_url_ws_business,
@@ -255,7 +257,7 @@ mod tests {
     }
 
     #[rstest]
-    fn test_exec_config_py_new_load_spreads() {
+    fn test_exec_config_py_new() {
         let config = OKXExecClientConfig::py_new(
             TraderId::from("TRADER-001"),
             AccountId::from("OKX-001"),
@@ -277,9 +279,16 @@ mod tests {
             true,
             None,
             None,
+            Some(vec!["BTC-USD".to_string()]),
         );
 
+        assert_eq!(
+            config.instrument_families,
+            Some(vec!["BTC-USD".to_string()]),
+        );
         assert!(config.load_spreads);
+        assert!(!config.use_spot_margin);
+        assert!(!config.use_mm_mass_cancel);
         assert_eq!(config.auth_timeout_secs, None);
     }
 }

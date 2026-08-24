@@ -74,6 +74,20 @@ def test_live_node_builder_accepts_okx_data_factory() -> None:
 def test_live_node_builder_accepts_okx_exec_factory() -> None:
     trader_id = TraderId.from_str("TESTER-001")
     account_id = AccountId.from_str("OKX-001")
+    exec_config = OKXExecClientConfig(
+        trader_id=trader_id,
+        account_id=account_id,
+        instrument_types=[OKXInstrumentType.OPTION],
+        instrument_families=["BTC-USD"],
+        environment=OKXEnvironment.DEMO,
+        api_key=SMOKE_API_KEY,
+        api_secret=SMOKE_API_SECRET,
+        api_passphrase=SMOKE_API_PASSPHRASE,
+    )
+
+    assert exec_config.instrument_families == ["BTC-USD"]
+    assert exec_config.use_spot_margin is False
+    assert exec_config.use_mm_mass_cancel is False
 
     node = (
         LiveNode.builder("OKX-EXEC-PYTEST-001", trader_id, Environment.LIVE)
@@ -82,22 +96,15 @@ def test_live_node_builder_accepts_okx_exec_factory() -> None:
             None,
             OKXDataClientFactory(),
             OKXDataClientConfig(
-                instrument_types=[OKXInstrumentType.SPOT],
+                instrument_types=[OKXInstrumentType.OPTION],
+                instrument_families=["BTC-USD"],
                 environment=OKXEnvironment.DEMO,
             ),
         )
         .add_exec_client(
             None,
             OKXExecutionClientFactory(),
-            OKXExecClientConfig(
-                trader_id=trader_id,
-                account_id=account_id,
-                instrument_types=[OKXInstrumentType.SPOT],
-                environment=OKXEnvironment.DEMO,
-                api_key=SMOKE_API_KEY,
-                api_secret=SMOKE_API_SECRET,
-                api_passphrase=SMOKE_API_PASSPHRASE,
-            ),
+            exec_config,
         )
         .build()
     )
