@@ -245,13 +245,30 @@ pub fn resolve_instrument_families(
     inst_type: OKXInstrumentType,
 ) -> Option<Vec<String>> {
     match (configured, inst_type) {
-        (Some(families), OKXInstrumentType::Option) => Some(families.clone()),
+        (Some(families), OKXInstrumentType::Option) => {
+            let mut seen = AHashSet::with_capacity(families.len());
+            let is_valid = !families.is_empty()
+                && families.iter().all(|family| {
+                    !family.is_empty() && family.trim() == family && seen.insert(family.as_str())
+                });
+
+            if is_valid {
+                Some(families.clone())
+            } else {
+                log::warn!(
+                    "Skipping OPTION type: instrument_families must be non-empty, canonical, and unique"
+                );
+                None
+            }
+        }
         (
             Some(families),
             OKXInstrumentType::Futures | OKXInstrumentType::Swap | OKXInstrumentType::Events,
         ) => Some(families.clone()),
         (None, OKXInstrumentType::Option) => {
-            log::warn!("Skipping OPTION type: instrument_families required but not configured");
+            log::warn!(
+                "Skipping OPTION type: instrument_families must be non-empty, canonical, and unique"
+            );
             None
         }
         _ => Some(vec![]),
@@ -286,6 +303,55 @@ mod tests {
     use rstest::rstest;
 
     use super::*;
+
+    #[rstest]
+    #[case::missing(None, None)]
+    #[case::empty(Some(vec![]), None)]
+    #[case::blank(Some(vec!["   ".to_string()]), None)]
+    #[case::padded(Some(vec![" BTC-USD ".to_string()]), None)]
+    #[case::mixed_blank(
+        Some(vec!["BTC-USD".to_string(), "\t".to_string()]),
+        None,
+    )]
+    #[case::duplicate(
+        Some(vec!["BTC-USD".to_string(), "BTC-USD".to_string()]),
+        None,
+    )]
+    #[case::valid_btc(
+        Some(vec!["BTC-USD".to_string()]),
+        Some(vec!["BTC-USD".to_string()]),
+    )]
+    fn test_resolve_option_instrument_families(
+        #[case] configured: Option<Vec<String>>,
+        #[case] expected: Option<Vec<String>>,
+    ) {
+        assert_eq!(
+            resolve_instrument_families(&configured, OKXInstrumentType::Option),
+            expected,
+        );
+    }
+
+    #[rstest]
+    #[case::futures_configured(
+        Some(vec!["BTC-USDT".to_string()]),
+        OKXInstrumentType::Futures,
+        Some(vec!["BTC-USDT".to_string()]),
+    )]
+    #[case::spot_ignores_families(
+        Some(vec!["BTC-USD".to_string()]),
+        OKXInstrumentType::Spot,
+        Some(vec![]),
+    )]
+    fn test_resolve_non_option_instrument_families(
+        #[case] configured: Option<Vec<String>>,
+        #[case] inst_type: OKXInstrumentType,
+        #[case] expected: Option<Vec<String>>,
+    ) {
+        assert_eq!(
+            resolve_instrument_families(&configured, inst_type),
+            expected,
+        );
+    }
 
     #[rstest]
     #[case::auto_default(0, OKXVipLevel::Vip0, OKXBookChannel::Book)]
