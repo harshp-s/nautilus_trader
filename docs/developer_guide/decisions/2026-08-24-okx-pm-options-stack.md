@@ -202,3 +202,18 @@ program: superseded decisions remain visible and point to the replacing entry.
 - **Cost if wrong:** The task-local toolchain and Python environment consume additional disk and
   must be included explicitly on `PATH` for every worker shell.
 - **Reversibility:** Remove the task-local `toolchains` directory and ignored `.venv` after delivery.
+
+## D-015: Apply the quanto compatibility exception only to non-inverse contracts
+
+- **Status:** Accepted; refines D-013
+- **Decision:** Preserve quote-currency locks and generic margins only when an instrument is both
+  non-inverse and quanto. For inverse-quanto contracts, retain existing inverse flag behavior:
+  base/underlying currency when quote mode is false and quote currency when it is true.
+- **Rationale:** `Instrument::is_quanto()` can also be true for an inverse contract. A condition on
+  `is_quanto()` alone would silently override the inverse currency convention this branch promises
+  to preserve.
+- **Alternatives:** Treat every quanto instrument alike; declare inverse-quanto unsupported and
+  remove its existing behavior.
+- **Cost if wrong:** The compatibility predicate is more explicit and carries extra control tests
+  through cash, wallet, and margin paths.
+- **Reversibility:** A later unified valuation-convention model can replace both derived predicates.
