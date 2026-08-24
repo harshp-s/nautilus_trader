@@ -1505,6 +1505,7 @@ mod tests {
         mut crypto_option_btc_deribit: CryptoOption,
     ) {
         crypto_option_btc_deribit.is_inverse = true;
+        crypto_option_btc_deribit.multiplier = Quantity::from("0.01");
         let instrument = InstrumentAny::CryptoOption(crypto_option_btc_deribit);
         let fill = option_fill_order(&instrument, LiquiditySide::Taker);
         let fee_model =
@@ -1520,7 +1521,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(commission.currency, Currency::BTC());
-        assert_eq!(commission.as_decimal(), dec!(0.10));
+        assert_eq!(commission.as_decimal(), dec!(0.0000001));
     }
 
     #[rstest]

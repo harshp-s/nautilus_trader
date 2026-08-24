@@ -1011,7 +1011,7 @@ def test_notional_value_currency_pair():
 
 @pytest.mark.parametrize(
     "instrument_type",
-    [CryptoFuture, CryptoOption, CryptoPerpetual, PerpetualContract],
+    [CryptoFuture, CryptoPerpetual, PerpetualContract],
 )
 @pytest.mark.parametrize(
     ("settlement_code", "is_inverse", "is_quanto", "expected_amount", "expected_currency"),
@@ -1044,6 +1044,48 @@ def test_derivative_notional_value_contract(
         quote_notional = instrument.notional_value(quantity, price, use_quote_for_inverse=True)
         assert quote_notional.as_decimal() == Decimal(2)
         assert quote_notional.currency == Currency.from_str("USD")
+
+
+@pytest.mark.parametrize(
+    (
+        "settlement_code",
+        "is_inverse",
+        "expected_is_quanto",
+        "expected_amount",
+        "expected_currency",
+    ),
+    [
+        ("USD", False, False, Decimal(2000), "USD"),
+        ("USDT", False, False, Decimal(2000), "USD"),
+        ("BTC", False, True, Decimal(2000), "BTC"),
+        ("ETH", True, False, Decimal(2000), "ETH"),
+    ],
+)
+def test_crypto_option_notional_value_contract(
+    settlement_code,
+    is_inverse,
+    expected_is_quanto,
+    expected_amount,
+    expected_currency,
+):
+    instrument = _make_derivative(CryptoOption, settlement_code, is_inverse)
+
+    notional = instrument.notional_value(
+        Quantity.from_int(2),
+        Price.from_str("100.00"),
+    )
+
+    assert instrument.is_quanto is expected_is_quanto
+    assert notional.as_decimal() == expected_amount
+    assert notional.currency == Currency.from_str(expected_currency)
+
+    if is_inverse:
+        quote_notional = instrument.notional_value(
+            Quantity.from_int(2),
+            Price.from_str("100.00"),
+            use_quote_for_inverse=True,
+        )
+        assert quote_notional == notional
 
 
 @pytest.mark.parametrize(

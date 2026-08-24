@@ -21,12 +21,14 @@ from tests.providers import TestInstrumentProvider
 from nautilus_trader.core import UUID4
 from nautilus_trader.model import AccountId
 from nautilus_trader.model import ClientOrderId
+from nautilus_trader.model import CryptoOption
 from nautilus_trader.model import CryptoPerpetual
 from nautilus_trader.model import Currency
 from nautilus_trader.model import InstrumentClass
 from nautilus_trader.model import InstrumentId
 from nautilus_trader.model import LiquiditySide
 from nautilus_trader.model import Money
+from nautilus_trader.model import OptionKind
 from nautilus_trader.model import OrderFilled
 from nautilus_trader.model import OrderSide
 from nautilus_trader.model import OrderType
@@ -451,6 +453,25 @@ def test_position_inverse_pnl_and_notional_value():
     )
 
 
+def test_inverse_crypto_option_position_uses_direct_premium_valuation():
+    instrument = _make_inverse_crypto_option()
+    fill = _make_fill(
+        instrument=instrument,
+        last_px="0.0325",
+        last_qty=25,
+        currency=instrument.settlement_currency,
+        commission="0.00000000 BTC",
+    )
+    position = Position(instrument=instrument, fill=fill)
+
+    assert position.calculate_pnl(
+        0.0325,
+        0.0400,
+        Quantity.from_int(25),
+    ) == Money.from_str("0.001875 BTC")
+    assert position.notional_value(Price.from_str("0.0400")) == Money.from_str("0.01 BTC")
+
+
 @pytest.mark.parametrize(
     ("opening_side", "flipping_side", "expected_side", "expected_quantity"),
     [
@@ -592,4 +613,26 @@ def _inverse_perpetual():
         size_increment=Quantity.from_int(1),
         ts_event=0,
         ts_init=0,
+    )
+
+
+def _make_inverse_crypto_option():
+    return CryptoOption(
+        instrument_id=InstrumentId.from_str("BTC-OPTION.SIM"),
+        raw_symbol=Symbol("BTC-OPTION"),
+        underlying=Currency.from_str("BTC"),
+        quote_currency=Currency.from_str("USD"),
+        settlement_currency=Currency.from_str("BTC"),
+        is_inverse=True,
+        option_kind=OptionKind.CALL,
+        strike_price=Price.from_str("50000.0000"),
+        activation_ns=1,
+        expiration_ns=2,
+        price_precision=4,
+        size_precision=0,
+        price_increment=Price.from_str("0.0001"),
+        size_increment=Quantity.from_int(1),
+        multiplier=Quantity.from_str("0.01"),
+        ts_event=1,
+        ts_init=2,
     )
