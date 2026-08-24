@@ -475,3 +475,35 @@ program: superseded decisions remain visible and point to the replacing entry.
   though its two substantive checks pass through their canonical hooks.
 - **Reversibility:** Rerun `make check-markdown` when npm's integrity state is healthy and append
   the result without rewriting this observed failure.
+
+## D-032: Accept the strict option-family bootstrap verification evidence
+
+- **Status:** Accepted
+- **Decision:** Accept the bootstrap slice after all of the following final-HEAD checks exited zero:
+
+  - focused option-family configuration/constants tests: 32 passed;
+  - focused PyO3 configuration-constructor test: 1 passed through the branch-local extension;
+  - Python factory and public-module-name tests: 41 passed;
+  - generated Python stub drift and runtime declaration checks: passed;
+  - `cargo test --profile ci-pr -p nautilus-okx --all-targets --features python -j1`: passed across
+    every adapter target, including 732 library tests, 120 execution integration tests, 105 HTTP
+    tests, 46 WebSocket tests, the Python boundary test, all remaining integration targets, and
+    benchmark smoke targets;
+  - `make format`: Rust and Python formatting passed, with 739 Python files unchanged;
+  - `CHANGED_BASE_SHA=d539fb88cbb8738327a7b024fe80fd340a1f9707 make pre-commit`: every
+    exact-base hook passed, including Python collection, Rust/Python formatting, Clippy, Cargo docs,
+    cargo-machete, generated/convention checks, security checks, and Markdown validation; and
+  - `git diff --check` plus tracked working-tree inspection: passed and clean before this evidence
+    entry.
+
+- **Rationale:** Strict family selection is the startup boundary on which every later registry,
+  preflight, reconciliation, settlement, and risk slice depends. Full adapter and exact-base gates
+  are required in addition to the focused constructor tests.
+- **Alternatives:** Rely only on focused tests; defer full adapter verification to hosted CI; leave
+  the result only in the ignored planning harness.
+- **Cost if wrong:** These results prove local offline behavior, not OKX demo/live account mode,
+  permissions, endpoint availability, or option-family enrollment.
+- **Limitations:** No venue request was made, no credential was used, and no GitHub-side action was
+  taken. The later production stack still requires its own full integration and demo qualification.
+- **Reversibility:** Append a superseding final-HEAD evidence entry if a later dependency or
+  integration rerun changes the result; never rewrite this observation.
