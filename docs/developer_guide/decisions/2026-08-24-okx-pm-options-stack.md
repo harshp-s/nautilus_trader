@@ -411,3 +411,67 @@ program: superseded decisions remain visible and point to the replacing entry.
   and generated Cargo profiles may need rebuilding after D-020 cleanup.
 - **Reversibility:** Append a superseding evidence entry if a later final-HEAD rerun changes any
   result; never rewrite the recorded observation.
+
+## D-028: Count only a loaded local extension as Python behavioral evidence
+
+- **Status:** Accepted
+- **Decision:** Do not count the first Python factory invocation as a behavioral RED when Python
+  could not import the branch's native extension. Build and install the branch-local debug extension
+  into the ignored project environment first, then count only tests which execute the changed Rust
+  constructor through that extension.
+- **Rationale:** An import/link failure proves an incomplete test environment, not the absence of
+  the requested configuration behavior. The later test exercised a real `LiveNode` construction
+  with `instrument_families` crossing the Python-to-Rust boundary.
+- **Alternatives:** Report the import error as RED; mock the Rust configuration object; defer the
+  Python boundary to hosted CI.
+- **Cost if wrong:** Building the extension adds substantial local compile time and disk use.
+- **Reversibility:** Future wheel-based verification can replace the editable debug build while
+  retaining the rule that behavioral evidence must reach the production boundary.
+
+## D-029: Clear only stale package artifacts when a focused Rust test reuses a RED diagnostic
+
+- **Status:** Accepted
+- **Decision:** When the focused PyO3 configuration test continued to report the already-fixed
+  constructor arity, run `cargo clean --profile ci-pr -p nautilus-okx` and rebuild that exact test.
+  Do not delete source, Git state, the Python environment, or unrelated Cargo profiles.
+- **Rationale:** The source and compiler invocation showed the new argument, while the diagnostic
+  was byte-for-byte the earlier RED result. A package/profile-scoped rebuild distinguished stale
+  generated output from a current compiler failure and then passed the test.
+- **Alternatives:** Edit correct source to accommodate the stale diagnostic; delete the entire
+  target tree; accept the test without a clean rebuild.
+- **Cost if wrong:** The adapter and its dependencies must be rebuilt for the `ci-pr` profile.
+- **Reversibility:** Cargo recreates the removed package artifacts deterministically.
+
+## D-030: Validate the generated Python stub as part of the candidate change
+
+- **Status:** Accepted
+- **Decision:** Generate and stage `python/nautilus_trader/adapters/okx/__init__.pyi` before running
+  the repository's generated-drift check. Require the stub to expose the appended constructor input
+  and the three new read-only getters, and verify its runtime declarations with the existing stub
+  tests.
+- **Rationale:** The drift checker compares regenerated output with the Git index. Leaving an
+  intended generated change only in the worktree creates an expected false failure and does not
+  model the candidate commit that CI will inspect.
+- **Alternatives:** Hand-edit the stub; ignore generated drift; change the checker to compare the
+  worktree.
+- **Cost if wrong:** Exact-path staging must be kept synchronized with its Rust source during
+  iteration.
+- **Reversibility:** Regenerate the stub from the final Rust declarations and restage the exact
+  file.
+
+## D-031: Use the repository-pinned Markdown hooks after standalone npm integrity failure
+
+- **Status:** Accepted
+- **Decision:** Treat `npm ECOMPROMISED: Lock compromised` from the standalone `make
+  check-markdown` download path as an environmental failure. Run the already-pinned repository
+  `markdownlint` and Markdown-table pre-commit hooks over the exact changed documentation instead,
+  and require both to pass.
+- **Rationale:** The pinned hooks apply the repository's authoritative versions and configuration
+  without trusting the failed transient npm resolver. This preserves the intended formatting gate
+  rather than weakening or skipping it.
+- **Alternatives:** Retry an unpinned npm install; skip Markdown validation; change repository
+  dependencies during the feature.
+- **Cost if wrong:** The standalone Make target itself remains unproven in this environment even
+  though its two substantive checks pass through their canonical hooks.
+- **Reversibility:** Rerun `make check-markdown` when npm's integrity state is healthy and append
+  the result without rewriting this observed failure.
